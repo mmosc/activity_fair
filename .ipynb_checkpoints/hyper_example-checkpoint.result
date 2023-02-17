@@ -1,0 +1,54 @@
+k:10, shrink:10
+Valid result:
+ndcg@10 : 0.1538
+Test result:
+ndcg@10 : 0.1787
+
+k:5, shrink:100
+Valid result:
+ndcg@10 : 0.1353
+Test result:
+ndcg@10 : 0.1525
+
+k:5, shrink:0
+Valid result:
+ndcg@10 : 0.109
+Test result:
+ndcg@10 : 0.1231
+
+k:5, shrink:10
+Valid result:
+ndcg@10 : 0.1362
+Test result:
+ndcg@10 : 0.1555
+
+k:3, shrink:0
+Valid result:
+ndcg@10 : 0.1027
+Test result:
+ndcg@10 : 0.1176
+
+k:3, shrink:10
+Valid result:
+ndcg@10 : 0.1218
+Test result:
+ndcg@10 : 0.1382
+
+k:10, shrink:0
+Valid result:
+ndcg@10 : 0.1214
+Test result:
+ndcg@10 : 0.1373
+
+k:10, shrink:100
+Valid result:
+ndcg@10 : 0.1525
+Test result:
+ndcg@10 : 0.1706
+
+k:3, shrink:100
+Valid result:
+ndcg@10 : 0.1242
+Test result:
+ndcg@10 : 0.1381
+

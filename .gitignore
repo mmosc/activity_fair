@@ -1,0 +1,11 @@
+log/
+log_tensorboard/
+datasets/
+*.log
+saved/
+test/
+train/
+user_activity/
+user_classes/
+val/
+
