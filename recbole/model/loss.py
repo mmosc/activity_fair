@@ -16,6 +16,7 @@ Common Loss in recommender system
 
 import torch
 import torch.nn as nn
+import math
 
 
 class BPRLoss(nn.Module):
@@ -45,6 +46,95 @@ class BPRLoss(nn.Module):
     def forward(self, pos_score, neg_score):
         loss = -torch.log(self.gamma + torch.sigmoid(pos_score - neg_score)).mean()
         return loss
+
+
+class SmoothRank(torch.nn.Module):
+    """
+    See
+    https://github.com/haolun-wu/Multi-Fair-Rec/blob/main/SoftRank.py
+    """
+
+    def __init__(self, temp=1):
+        """
+
+        Args:
+            temp: temperature. how soft the ranks to be
+        """
+        super(SmoothRank, self).__init__()
+        self.temp = temp
+        self.sigmoid = torch.nn.Sigmoid()
+
+    def forward(self, scores_max_relevant, scores):
+        x_0 = scores_max_relevant.unsqueeze(dim=-1)
+        x_1 = scores.unsqueeze(dim=-2)
+        diff = x_1 - x_0
+        is_lower = diff / self.temp
+        is_lower = self.sigmoid(is_lower)
+        # del diff
+
+        ranks = torch.sum(is_lower, dim=-1) + 0.5
+        # del is_lower
+        # torch.cuda.empty_cache()
+        return ranks
+
+
+class SmoothDCGLoss(nn.Module):
+    """
+    See
+    https://github.com/haolun-wu/Multi-Fair-Rec/blob/main/SoftRank.py
+    """
+
+    def __init__(self, device, topk, temp=1):
+        """
+
+        Args:
+            args:
+            topk:
+            temp: temperature. how soft the ranks to be
+        """
+        super(SmoothDCGLoss, self).__init__()
+        self.smooth_ranker = SmoothRank(temp)
+        self.zero = nn.Parameter(torch.tensor([0], dtype=torch.float32), requires_grad=False)
+        self.one = nn.Parameter(torch.tensor([1], dtype=torch.float32), requires_grad=False)
+        self.topk = topk
+        # TODO
+        self.device = device
+        self.idcg_vector = self.idcg_k()
+
+    def idcg_k(self):
+        res = torch.zeros(self.topk).to(self.device)
+
+        for k in range(1, self.topk + 1):
+            res[k - 1] = sum([1.0 / math.log(i + 2, 2) for i in range(k)])
+
+        return res
+
+    def forward(self, scores_top, scores, labels):
+        ranks = self.smooth_ranker(scores_top, scores)
+        # print("ranks:", ranks)
+        d = torch.log2(ranks + 1)
+        dg = labels / d
+
+        ndcg = None
+
+        for p in range(1, self.topk + 1):
+            dg_k = dg[:, :p]
+            dcg_k = dg_k.sum(dim=-1)
+            k = torch.sum(labels, dim=-1).long()
+            k = torch.clamp(k, max=p, out=None)
+            ndcg_k = (dcg_k / self.idcg_vector[k - 1]).reshape(-1, 1)
+
+            ndcg = ndcg_k if ndcg is None else torch.cat((ndcg, ndcg_k), dim=1)
+
+        # print("ndcg:", ndcg.shape)
+
+        # dcg = dg.sum(dim=-1)
+        # k = torch.sum(labels, dim=-1).long()
+        # k = torch.clamp(k, max = self.topk, out=None)
+        # dcg = dcg / self.idcg_vector[k-1]
+        # dcg = dcg
+
+        return ndcg
 
 
 class RegLoss(nn.Module):
@@ -101,6 +191,6 @@ class EmbMarginLoss(nn.Module):
         cache_zero = torch.tensor(0.0).to(dev)
         emb_loss = torch.tensor(0.0).to(dev)
         for embedding in embeddings:
-            norm_e = torch.sum(embedding**self.power, dim=1, keepdim=True)
+            norm_e = torch.sum(embedding ** self.power, dim=1, keepdim=True)
             emb_loss += torch.sum(torch.max(norm_e - cache_one, cache_zero))
         return emb_loss
