@@ -69,42 +69,49 @@ class BPR(GeneralRecommender):
         print("max_pos:", max_pos)
         self.max_pos = max_pos
 
-
-    def get_max_pos(self, ):
-        # TODO
-        # Sample max_pos items for each user.
+    def get_max_pos(self, train_data):
+        # TODO check the adaption of haolun
+        # code for neg_ids_list and pos_ids_list to recbole
+        #
+        # What it should do:
+        # Sample self.max_pos items for each user.
         # Those are the items to be used in the NDCG approx loss (fixed number).
         # All other items are ignored for NDCG loss.
         # If less than max_pos items are available
         # The remaining items are taken from the negative ones
-        self.neg_ids_list = []
-        self.pos_ids_list = []
+        self.neg_ids_dict = {}
+        self.pos_ids_dict = {}
 
-        user_size = self.n_users
-        item_size = self.n_items
-        # TODO train_user_list[i] contains the list of
-        # items consumed by user i according to the
-        # train set
-        for i in range(user_size):
-            if (len(train_user_list[i]) > max_pos):
-                sampled_pos_ids = np.random.choice(len(train_user_list[i]), size=max_pos, replace=False)
-                tmp = [train_user_list[i][j] for j in sampled_pos_ids]
-                self.pos_ids_list.append(tmp)
+        user_ids = train_data[self.USER_ID].unique()
+        train_counts_per_user = train_data[self.USER_ID].value_counts()
+
+        for user_index, train_counts in train_counts_per_user.items():
+            user_pos = train_data[train_data[self.USER_ID] == user_index][self.ITEM_ID]
+            if train_counts > self.max_pos:
+                sampled_pos_ids = np.random.choice(train_counts, size=self.max_pos, replace=False)
+                tmp = [user_pos[j] for j in sampled_pos_ids]
+                self.pos_ids_list[user_index] = tmp
             else:
-                self.pos_ids_list.append(train_user_list[i])
-            self.neg_ids_list.append(negsamp_vectorized_bsearch_preverif(np.array(train_user_list[i]), item_size,
-                                                                    n_samp=max_pos - len(pos_ids_list[i])))
+                self.pos_ids_list[user_index] = list(user_pos)
 
-        self.sampled_ids = np.ones((user_size, max_pos)) * item_size
-        self.labels = np.zeros((user_size, max_pos))
+            self.neg_ids_list[user_index] = negsamp_vectorized_bsearch_preverif(np.array(user_pos), self.n_items,
+                                                                                n_samp=self.max_pos - train_counts)
+        self.sampled_ids = {user_id: np.ones(self.max_pos) * self.n_items for user_id in user_ids}
+        self.labels = {user_id: np.zeros(self.max_pos) for user_id in user_ids}
 
-        for i in range(user_size):
-            self.sampled_ids[i][:len(self.pos_ids_list[i])] = np.array(self.pos_ids_list[i])
-            self.sampled_ids[i][len(self.pos_ids_list[i]):] = self.neg_ids_list[i]
-            self.labels[i][:len(self.pos_ids_list[i])] = 1
 
-        self.sampled_ids = torch.LongTensor(self.sampled_ids).to(args.device)
-        self.labels = torch.LongTensor(self.labels).to(args.device)
+        # TODO adapt below:
+        # in my version, self.sample_ids are dictionaries,
+        # but they should probably be converted to tensors
+        # This requires a proper identification of the
+        # user ids / recbole ids / ....
+        for user_id in user_ids:
+            self.sampled_ids[user_id][:len(self.pos_ids_list[user_id])] = np.array(self.pos_ids_list[user_id])
+            self.sampled_ids[user_id][len(self.pos_ids_list[user_id]):] = self.neg_ids_list[user_id]
+            self.labels[user_id][:len(self.pos_ids_list[user_id])] = 1
+
+        # self.sampled_ids = torch.LongTensor(self.sampled_ids).to(args.device)
+        # self.labels = torch.LongTensor(self.labels).to(args.device)
 
     def get_user_embedding(self, user):
         r"""Get a batch of user embedding tensor according to input user's id.
