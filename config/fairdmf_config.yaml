@@ -54,8 +54,10 @@ valid_metric_bigger: True       # (bool) Whether to take a bigger valid metric v
 eval_batch_size: 1024           # (int) The evaluation batch size.
 metric_decimal_place: 4         # (int) The decimal place of metric scores.
 
+embedding_size: 8
 temperature: 1. # The temperature parameter in the approx rank
 beta: 0.5 # The regularization parameter between accuracy and fairness
 dataset: ml-100k
+
 
 inter_matrix_type: '01' # Implicit feedback (no ratings)

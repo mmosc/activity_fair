@@ -122,7 +122,7 @@ class FairDMF(GeneralRecommender):
         self.dataset_name = dataset.dataset_name
         self.dcg_loss = SmoothDCGLoss(device=self.device, topk=50, temp=self.temp)
 
-        # self.item_set = torch.range(start=1, end=self.n_items - 1, step=1, dtype=int)
+        self.item_set = torch.range(start=1, end=self.n_items - 1, step=1, dtype=int)
 
         self.get_token2gender('/home/marta/jku/fairinterplay/dataset/ml-100k/ml-100k.user')
         self.dataset = dataset
