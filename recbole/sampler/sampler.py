@@ -206,7 +206,7 @@ class Sampler(AbstractSampler):
     """
 
     def __init__(self, phases, datasets, distribution="uniform", alpha=1.0):
-        print(f"phases: {len(phases)}\t datasets: {len(datasets)}")
+        # print(f"phases: {len(phases)}\t datasets: {len(datasets)}")
         if not isinstance(phases, list):
             phases = [phases]
         if not isinstance(datasets, list):
