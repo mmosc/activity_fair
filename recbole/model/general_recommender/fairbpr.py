@@ -73,7 +73,7 @@ class FairBPR(GeneralRecommender):
         self.dataset_name = dataset.dataset_name
         self.dcg_loss = SmoothDCGLoss(device=self.device, topk=50, temp=self.temp)
 
-        self.item_set = torch.range(start=1, end=self.n_items - 1, step=1, dtype=int)
+        self.item_set = torch.range(start=1, end=self.n_items - 1, step=1, dtype=int).to(self.device)
 
         self.get_token2gender('/home/marta/jku/fairinterplay/dataset/ml-100k/ml-100k.user')
         self.dataset = dataset
@@ -167,9 +167,9 @@ class FairBPR(GeneralRecommender):
             self.labels[user_id][:len(self.pos_ids_dict[user_id])] = 1
 
         self.sampled_ids_tensor_noPAD = torch.tensor(
-            np.array([sampled_ids_user - 1 for sampled_ids_user in self.sampled_ids.values()]))
+            np.array([sampled_ids_user - 1 for sampled_ids_user in self.sampled_ids.values()])).to(self.device)
         self.sampled_labels_tensor = torch.tensor(
-            np.array([sampled_labels_user for sampled_labels_user in self.labels.values()]))
+            np.array([sampled_labels_user for sampled_labels_user in self.labels.values()])).to(self.device)
 
     def get_user_embedding(self, user):
         r"""Get a batch of user embedding tensor according to input user's id.
@@ -224,7 +224,7 @@ class FairBPR(GeneralRecommender):
         # REMARK: This way we are only scoring the items in the batch.
         # See localhost:8888/lab/tree/Multi-Fair-Rec/main_bpr.py
         # The set of users in this batch
-        batch_user_set_ids = torch.unique(user)
+        batch_user_set_ids = torch.unique(user).to(self.device)
         # batch_user_genders = [self.userid_to_gender[user_id]
         batch_user_e, all_item_e = self.forward(batch_user_set_ids, self.item_set)
         #print(batch_user_e.shape, all_item_e.shape)
