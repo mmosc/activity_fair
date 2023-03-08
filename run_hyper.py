@@ -11,6 +11,7 @@
 import argparse
 import os
 import numpy as np
+import torch
 
 from recbole.trainer import HyperTuning
 from recbole.quick_start import objective_function
@@ -30,7 +31,7 @@ def hyperopt_tune(args):
     hp = HyperTuning(
         objective_function,
         algo="exhaustive",
-        early_stop=100,
+        early_stop=99999,
         max_evals=100,
         params_file=args.params_file,
         fixed_config_file_list=config_file_list,
@@ -122,7 +123,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--tool", type=str, default="Hyperopt", help="tuning tool")
     args, _ = parser.parse_known_args()
-
+    # print("Cuda is available: ", torch.cuda.is_available())
     if args.tool == "Hyperopt":
         hyperopt_tune(args)
     elif args.tool == "Ray":
