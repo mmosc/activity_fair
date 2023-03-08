@@ -423,7 +423,7 @@ class Trainer(AbstractTrainer):
         Returns:
              (float, dict): best valid score and best valid result. If valid_data is None, it returns (-1, None)
         """
-        if self.model._get_name() == 'FairBPR':
+        if self.model._get_name() in ['FairBPR', 'FairDMF']:
             self.model.get_max_pos(train_data, valid_data)
         if saved and self.start_epoch >= self.epochs:
             self._save_checkpoint(-1, verbose=verbose)
