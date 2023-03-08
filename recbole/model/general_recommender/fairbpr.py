@@ -69,6 +69,7 @@ class FairBPR(GeneralRecommender):
         self.apply(xavier_normal_initialization)
 
         self.temp = config["temperature"]
+        self.beta = config["beta"]
         self.dataset_name = dataset.dataset_name
         self.dcg_loss = SmoothDCGLoss(device=self.device, topk=50, temp=self.temp)
 
@@ -257,7 +258,7 @@ class FairBPR(GeneralRecommender):
 
         fairness_loss = torch.abs(torch.log(1 + torch.abs(ndcg_M[-1] - ndcg_F[-1]))).sum()
 
-        return bpr_loss + fairness_loss
+        return (1. - self.beta) * bpr_loss + self.beta * fairness_loss
 
     def predict(self, interaction):
         user = interaction[self.USER_ID]
