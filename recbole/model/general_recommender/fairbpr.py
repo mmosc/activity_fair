@@ -18,6 +18,7 @@ Reference:
 import torch
 import torch.nn as nn
 import pandas as pd
+import torch.nn.functional as F
 
 import numpy as np
 
@@ -27,6 +28,15 @@ from recbole.model.loss import BPRLoss
 from recbole.model.loss import SmoothDCGLoss
 from recbole.utils import InputType
 from recbole.model.model_utils import negsamp_vectorized_bsearch_preverif
+
+
+class ToOneHot(nn.Module):
+    def __init__(self, num_classes):
+        super(ToOneHot, self).__init__()
+        self.num_classes = num_classes
+    def forward(self, x):
+        return F.one_hot(torch.LongTensor([x], num_classes=self.num_classes))
+
 
 
 class FairBPR(GeneralRecommender):
@@ -42,6 +52,16 @@ class FairBPR(GeneralRecommender):
         # define layers and loss
         # TODO reproducibility seed for max_pos
         # TODO convert the embeddings to onehot + linear
+        """
+        self.user_embedding = nn.Sequential(
+            ToOneHot(self.n_users),
+            nn.Linear(self.n_users, self.embedding_size),
+        )
+        nn.Embedding(self.n_users, self.embedding_size)
+        self.item_embedding = nn.Sequential(
+            ToOneHot(self.n_items),
+            nn.Linear(self.n_items, self.embedding_size),
+        )"""
         self.user_embedding = nn.Embedding(self.n_users, self.embedding_size)
         self.item_embedding = nn.Embedding(self.n_items, self.embedding_size)
         self.bpr_loss = BPRLoss()
@@ -52,17 +72,26 @@ class FairBPR(GeneralRecommender):
         self.dataset_name = dataset.dataset_name
         self.dcg_loss = SmoothDCGLoss(device=self.device, topk=50, temp=self.temp)
 
-        item = dataset[self.ITEM_ID]
-        # The set of all item IDS
-        self.item_set = torch.unique(item)
+        self.item_set = torch.range(start=1, end=self.n_items - 1, step=1, dtype=int)
 
-        ### TODO Get the gender of users
+        self.get_token2gender('/home/marta/jku/fairinterplay/dataset/ml-100k/ml-100k.user')
+        self.dataset = dataset
 
-    def get_user_gender(self, user_info_path):
+    def get_token2gender(self, user_info_path):
+        """
+        sets the Dict of the token id (i.e., original dataset id)
+        to gender.
+        REMARK!! This is NOT the recbole ID
+        Args:
+            user_info_path:
+
+        Returns:
+
+        """
         # https://github.com/haolun-wu/Multi-Fair-Rec/blob/f4463f017f1691841743122fe4ffa379aa2186e6/preprocess.py#L29
         user_info_df = pd.read_csv(user_info_path, sep='\t')
-        user_info_df = user_info_df['user_id:token', 'gender:token']
-        self.userid_to_gender = {row[1][0]: row[1][1] for row in user_info_df.iterrows()}
+        user_info_df = user_info_df[['user_id:token', 'gender:token']]
+        self.token2gender = {str(row[1][0]): row[1][1] for row in user_info_df.iterrows()}
 
     def set_max_pos(self, train_data, val_data):
         """
@@ -87,12 +116,10 @@ class FairBPR(GeneralRecommender):
                             for key in set(self.train_count_dict) | set(self.val_count_dict)}
 
         max_length = max(train_val_counts, key=train_val_counts.get)
-        # print("max_train_val_length:", max_length)
         if self.dataset_name == 'ml-1m' or 'ml-100k':
             max_pos = max_length if max_length < 200 else 200
         elif self.dataset_name == 'lastfm':
             max_pos = max_length if max_length < 100 else 100
-        # print("max_pos:", max_pos)
         self.max_pos = max_pos
 
     def get_max_pos(self, train_data, val_data):
@@ -193,12 +220,13 @@ class FairBPR(GeneralRecommender):
         ).sum(dim=1)
         bpr_loss = self.bpr_loss(pos_item_score, neg_item_score)
 
-        # TODO
         # REMARK: This way we are only scoring the items in the batch.
         # See localhost:8888/lab/tree/Multi-Fair-Rec/main_bpr.py
         # The set of users in this batch
         batch_user_set_ids = torch.unique(user)
+        # batch_user_genders = [self.userid_to_gender[user_id]
         batch_user_e, all_item_e = self.forward(batch_user_set_ids, self.item_set)
+        #print(batch_user_e.shape, all_item_e.shape)
         scores_all = torch.matmul(batch_user_e, all_item_e.T)
 
         # The embedding of the max_pos sampled ids of each user (in the batch)
@@ -212,25 +240,22 @@ class FairBPR(GeneralRecommender):
         ##########
         # Remark this is restricted to the batch, i.e., be careful with the indices when selecting male and female
         ##########
+        # batch_userid_to_gender = {user_id: self.token2gender[interaction.id2token(interaction.uid_field, user_id)] for user_id in batch_sampled_ids_tensor_noPAD}
+        # List of genders ordered as in the current batch
+        batch_userid_gender = [self.token2gender[self.dataset.id2token(self.dataset.uid_field, user_id)] for user_id in batch_user_set_ids]
+        mask_F = [gender == 'F' for gender in batch_userid_gender]
+        mask_M = [gender == 'M' for gender in batch_userid_gender]
+
         ndcg = self.dcg_loss(scores_top=scores, scores=scores_all, labels=batch_sampled_labels_tensor)
 
-        # TODO separate the two classes(e.g., male and female)
-        mask_F = self.gender_label[unique_u]
-        mask_M = 1 - mask_F
-
-        mask_F = torch.from_numpy(mask_F).type(torch.FloatTensor).to(self.device)
-        mask_M = torch.from_numpy(mask_M).type(torch.FloatTensor).to(self.device)
-        pos_F = torch.tensor(np.where(mask_F.cpu() == 1)[0]).to(self.device)
-        pos_M = torch.tensor(np.where(mask_M.cpu() == 1)[0]).to(self.device)
-
-        ndcg_F = ndcg[pos_F]
-        ndcg_M = ndcg[pos_M]
+        ndcg_F = ndcg[mask_F]
+        ndcg_M = ndcg[mask_M]
 
         # sum the matrix in column
-        ndcg_F = ndcg_F.sum(dim=0) / mask_F.sum()
-        ndcg_M = ndcg_M.sum(dim=0) / mask_M.sum()
+        ndcg_F = ndcg_F.sum(dim=0) / sum(mask_F)
+        ndcg_M = ndcg_M.sum(dim=0) / sum(mask_M)
 
-        fairness_loss = torch.abs(torch.log(1 + torch.abs(ndcg_F - ndcg_M))).sum()
+        fairness_loss = torch.abs(torch.log(1 + torch.abs(ndcg_M[-1] - ndcg_F[-1]))).sum()
 
         return bpr_loss + fairness_loss
 
@@ -245,8 +270,5 @@ class FairBPR(GeneralRecommender):
         user_e = self.get_user_embedding(user)
         all_item_e = self.item_embedding.weight
 
-        # Reduce memory usage
-        # user_e, all_item_e = user_e.type(torch.bfloat16), all_item_e.type(torch.bfloat16)
-        # print(user_e.type(), all_item_e.type())
         score = torch.matmul(user_e, all_item_e.transpose(0, 1))
         return score.view(-1)

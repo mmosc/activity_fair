@@ -86,7 +86,7 @@ class SmoothDCGLoss(nn.Module):
 
     def __init__(self, device, topk, temp=1):
         """
-
+        Returns all the NDCGs from 1 to k
         Args:
             args:
             topk:
