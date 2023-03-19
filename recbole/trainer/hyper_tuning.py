@@ -167,16 +167,16 @@ class HyperTuning(object):
     """
 
     def __init__(
-        self,
-        objective_function,
-        space=None,
-        params_file=None,
-        params_dict=None,
-        fixed_config_file_list=None,
-        display_file=None,
-        algo="exhaustive",
-        max_evals=100,
-        early_stop=10,
+            self,
+            objective_function,
+            space=None,
+            params_file=None,
+            params_dict=None,
+            fixed_config_file_list=None,
+            display_file=None,
+            algo="exhaustive",
+            max_evals=100,
+            early_stop=10,
     ):
         self.best_score = None
         self.best_params = None
@@ -327,11 +327,16 @@ class HyperTuning(object):
                     + dict2str(self.params2result[params]["best_valid_result"])
                     + "\n"
                 )
-                fp.write(
-                    "Test result:\n"
-                    + dict2str(self.params2result[params]["test_result"])
-                    + "\n\n"
-                )
+                try:
+                    fp.write(
+                        "Test result:\n"
+                        + dict2str(self.params2result[params]["test_result"])
+                        + "\n\n"
+                    )
+                except:
+                    fp.write(
+                        "Empty Test Set\n\n"
+                    )
 
     def trial(self, params):
         r"""Given a set of parameters, return results and optimization status

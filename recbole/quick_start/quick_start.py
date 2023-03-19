@@ -91,13 +91,17 @@ def run_recbole(
         train_data, valid_data, saved=saved, show_progress=config["show_progress"]
     )
 
-    # model evaluation
-    test_result = trainer.evaluate(
-        test_data, load_best_model=saved, show_progress=config["show_progress"]
-    )
-
     logger.info(set_color("best valid ", "yellow") + f": {best_valid_result}")
-    logger.info(set_color("test result", "yellow") + f": {test_result}")
+    # model evaluation
+    test_result = "Empty test set"
+    try:
+        test_result = trainer.evaluate(
+            test_data, load_best_model=saved, show_progress=config["show_progress"]
+        )
+        logger.info(set_color("test result", "yellow") + f": {test_result}")
+    except:
+        print("Empty test set")
+
 
     return {
         "best_valid_score": best_valid_score,
@@ -149,8 +153,11 @@ def objective_function(config_dict=None, config_file_list=None, saved=True):
         train_data, valid_data, verbose=False, saved=saved
     )
     test_result = trainer.evaluate(test_data, load_best_model=saved)
+    try:
+        tune.report(**test_result)
+    except:
+        print("Empty test set")
 
-    tune.report(**test_result)
     return {
         "model": model_name,
         "best_valid_score": best_valid_score,

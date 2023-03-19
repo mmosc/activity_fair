@@ -52,7 +52,7 @@ def full_sort_scores(uid_series, model, test_data, device=None):
             try:
                 full_like_list += [torch.full_like(hist_iid, i)]
             except:
-                print("Error for i = ", i)
+                # print("Error for i = ", i)
                 continue
         # print("Len of full_like_list", len(full_like_list))
         # print("Len of history_item", len(list(history_item)))
